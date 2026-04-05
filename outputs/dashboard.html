@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sales Intelligence · Dashboard</title>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root,[data-theme="light"]{
+  --bg:#f8fafc;--surface:#ffffff;--border:#e2e8f0;
+  --primary:#6366f1;--success:#10b981;--warn:#f59e0b;--danger:#ef4444;
+  --text:#1e293b;--muted:#64748b;--subtle:#94a3b8;
+  --chat-bg:#f1f5f9;--msg-ai:#f1f5f9;--msg-ai-text:#1e293b;
+  --chat-input-bg:#ffffff;--badge-bg:#f1f5f9;
+  --sk-a:#e2e8f0;--sk-b:#cbd5e1;
+  --shadow:0 1px 3px rgba(0,0,0,.08);
+  --chat-w:360px;--header-h:60px;
+}
+[data-theme="dark"]{
+  --bg:#0f172a;--surface:#1e293b;--border:#334155;
+  --text:#f1f5f9;--muted:#94a3b8;--subtle:#64748b;
+  --chat-bg:#0f172a;--msg-ai:#0f172a;--msg-ai-text:#f1f5f9;
+  --chat-input-bg:#0f172a;--badge-bg:#0f172a;
+  --sk-a:#1e293b;--sk-b:#334155;
+  --shadow:none;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;transition:background .25s,color .25s;}
+
+/* ── LOGIN ──────────────────────────────── */
+#login-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:40px;width:360px;text-align:center;box-shadow:var(--shadow);}
+.login-logo{font-size:28px;font-weight:800;color:var(--primary);margin-bottom:6px;letter-spacing:-.5px;}
+.login-sub{color:var(--muted);font-size:13px;margin-bottom:32px;}
+.login-box input{width:100%;padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;outline:none;margin-bottom:12px;transition:.2s;}
+.login-box input:focus{border-color:var(--primary);}
+.login-btn{width:100%;padding:13px;background:var(--primary);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;transition:.2s;}
+.login-btn:hover{background:#4f46e5;}
+.login-err{color:var(--danger);font-size:13px;margin-top:8px;min-height:18px;}
+
+/* ── APP ────────────────────────────────── */
+#app{display:none;}
+
+/* ── HEADER ─────────────────────────────── */
+header{position:fixed;top:0;left:0;right:0;height:var(--header-h);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;z-index:100;gap:12px;box-shadow:var(--shadow);}
+.hdr-logo{font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.3px;}
+.hdr-logo span{color:var(--primary);}
+.hdr-badge{display:flex;align-items:center;gap:6px;background:var(--badge-bg);border:1px solid var(--border);padding:4px 12px;border-radius:999px;font-size:12px;color:var(--muted);}
+.dot-live{width:7px;height:7px;border-radius:50%;background:var(--success);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+.hdr-spacer{flex:1;}
+.hdr-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:6px 14px;border-radius:8px;font-size:12px;cursor:pointer;transition:.2s;}
+.hdr-btn:hover{border-color:var(--primary);color:var(--primary);}
+.theme-toggle{width:40px;height:22px;border-radius:999px;border:1px solid var(--border);background:var(--bg);cursor:pointer;position:relative;transition:.25s;flex-shrink:0;}
+.theme-toggle::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--primary);transition:.25s;}
+[data-theme="dark"] .theme-toggle::after{left:20px;}
+.theme-icon{font-size:13px;pointer-events:none;}
+
+/* ── REFRESH BTN ────────────────────────── */
+#refresh-btn{display:none;align-items:center;gap:7px;background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px 5px 10px;border-radius:8px;font-size:12px;cursor:pointer;transition:.2s;}
+#refresh-btn:hover{border-color:var(--primary);color:var(--primary);}
+#refresh-btn:hover .refresh-icon{color:var(--primary);}
+#refresh-btn.spinning .refresh-icon{animation:spin .7s linear infinite;}
+.refresh-icon{font-size:13px;transition:.2s;}
+.refresh-ts{font-size:11px;color:var(--subtle);font-weight:400;}
+
+/* ── LOADING OVERLAY ────────────────────── */
+#loading-overlay{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:500;gap:16px;}
+#loading-overlay.hidden{display:none;}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-text{font-size:13px;color:var(--muted);}
+#error-banner{background:var(--surface);border:1px solid var(--danger);border-radius:12px;padding:16px 20px;margin:24px;display:none;align-items:center;gap:12px;}
+#error-banner .err-title{font-size:13px;font-weight:600;color:var(--danger);}
+#error-banner .err-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+
+/* ── CHAT SIDEBAR ───────────────────────── */
+#chat-sidebar{position:fixed;top:var(--header-h);right:0;bottom:0;width:var(--chat-w);background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:90;transition:.3s;}
+#chat-sidebar.collapsed{transform:translateX(var(--chat-w));}
+.chat-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.chat-header-title{font-size:14px;font-weight:600;}
+.chat-header-sub{font-size:11px;color:var(--muted);}
+#chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;background:var(--chat-bg);}
+.msg{max-width:90%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5;}
+.msg-user{background:var(--primary);color:#fff;align-self:flex-end;border-bottom-right-radius:4px;}
+.msg-ai{background:var(--msg-ai);color:var(--msg-ai-text);align-self:flex-start;border-bottom-left-radius:4px;border:1px solid var(--border);}
+.msg-typing{color:var(--muted);font-style:italic;font-size:12px;}
+.chat-suggestions{padding:12px 16px;display:flex;flex-direction:column;gap:6px;background:var(--surface);}
+.chat-suggestion{background:var(--bg);border:1px solid var(--border);color:var(--muted);padding:8px 12px;border-radius:8px;font-size:12px;cursor:pointer;text-align:left;transition:.2s;}
+.chat-suggestion:hover{border-color:var(--primary);color:var(--primary);}
+.chat-input-row{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;background:var(--surface);}
+#chat-input{flex:1;background:var(--chat-input-bg);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:10px;font-size:13px;outline:none;resize:none;height:42px;}
+#chat-input:focus{border-color:var(--primary);}
+#chat-send{background:var(--primary);border:none;color:#fff;padding:0 16px;border-radius:10px;cursor:pointer;font-size:16px;transition:.2s;}
+#chat-send:hover{background:#4f46e5;}
+#chat-send:disabled{opacity:.4;cursor:not-allowed;}
+
+/* ── MAIN ───────────────────────────────── */
+main{margin-top:var(--header-h);margin-right:var(--chat-w);padding:28px 28px 60px;transition:.3s;}
+main.expanded{margin-right:0;}
+.filter-row{display:flex;align-items:center;gap:10px;margin-bottom:24px;}
+.filter-label{font-size:12px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.05em;}
+.month-btn{padding:7px 18px;border-radius:999px;border:1px solid var(--border);background:none;color:var(--muted);font-size:13px;font-weight:500;cursor:pointer;transition:.2s;}
+.month-btn:hover{border-color:var(--primary);color:var(--primary);}
+.month-btn.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+
+/* ── KPI CARDS ──────────────────────────── */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px 22px;box-shadow:var(--shadow);}
+.kpi-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;}
+.kpi-value{font-size:26px;font-weight:700;color:var(--text);margin-bottom:6px;line-height:1.1;}
+.kpi-trend{font-size:12px;}
+.trend-up{color:var(--success);}
+.trend-down{color:var(--danger);}
+.trend-neutral{color:var(--muted);}
+
+/* ── CHARTS ─────────────────────────────── */
+.section-title{font-size:16px;font-weight:700;margin-bottom:4px;}
+.section-sub{font-size:12px;color:var(--muted);margin-bottom:20px;}
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px;}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;box-shadow:var(--shadow);}
+.chart-card.full{grid-column:span 2;}
+.chart-title{font-size:14px;font-weight:700;margin-bottom:2px;}
+.chart-subtitle{font-size:11px;color:var(--muted);margin-bottom:18px;}
+.chart-wrap canvas{max-height:260px;}
+.chart-wrap.center{display:flex;justify-content:center;}
+
+/* ── INSIGHTS ───────────────────────────── */
+.insights-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px;}
+.insight-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:var(--shadow);}
+.insight-icon{font-size:24px;margin-bottom:12px;}
+.insight-title{font-size:13px;font-weight:700;margin-bottom:6px;}
+.insight-text{font-size:12px;color:var(--muted);line-height:1.6;}
+
+/* ── SKELETON ───────────────────────────── */
+.sk{background:linear-gradient(90deg,var(--sk-a) 25%,var(--sk-b) 50%,var(--sk-a) 75%);background-size:200% 100%;animation:shim 1.5s infinite;border-radius:6px;}
+@keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.sk-h{height:28px;margin-bottom:6px;}
+.sk-t{height:11px;margin-bottom:6px;}
+.sk-t.w90{width:90%;}
+.sk-t.w60{width:60%;}
+
+/* ── AI BANNER ──────────────────────────── */
+#ai-banner{display:none;background:var(--surface);border:1px solid var(--warn);border-radius:12px;padding:14px 18px;align-items:center;gap:12px;margin-bottom:20px;}
+#ai-banner .b-icon{font-size:20px;}
+#ai-banner .b-title{font-size:13px;font-weight:600;color:var(--warn);}
+#ai-banner .b-sub{font-size:11px;color:var(--muted);}
+#ai-banner code{font-size:11px;background:var(--bg);border:1px solid var(--border);padding:2px 6px;border-radius:4px;}
+
+@media(max-width:900px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr);}
+  .charts-grid,.charts-grid .chart-card.full{grid-template-columns:1fr;grid-column:span 1;}
+  .insights-grid{grid-template-columns:1fr;}
+  main{margin-right:0;}
+  #chat-sidebar{width:100%;transform:translateX(100%);}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">◆ Sales Intelligence</div>
+    <div class="login-sub">Dashboard de análise de vendas · 2026</div>
+    <input type="password" id="login-pass" placeholder="Senha de acesso" autocomplete="off">
+    <button class="login-btn" onclick="doLogin()">Entrar</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- LOADING OVERLAY -->
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loading-text">Conectando ao Supabase...</div>
+  </div>
+
+  <!-- HEADER -->
+  <header>
+    <div class="hdr-logo">◆ <span>Sales</span> Intelligence</div>
+    <div class="hdr-badge"><span class="dot-live"></span> Ao vivo</div>
+    <div class="hdr-spacer"></div>
+    <button id="refresh-btn" onclick="refreshData()" title="Atualizar dados">
+      <span class="refresh-icon">↻</span>
+      <span id="refresh-label">Atualizar</span>
+      <span class="refresh-ts" id="refresh-ts"></span>
+    </button>
+    <span class="theme-icon" id="theme-icon">☀️</span>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema"></button>
+    <button class="hdr-btn" id="chat-toggle-btn" onclick="toggleChat()">💬 Chat</button>
+  </header>
+
+  <!-- CHAT SIDEBAR -->
+  <div id="chat-sidebar">
+    <div class="chat-header">
+      <div>
+        <div class="chat-header-title">Assistente IA</div>
+        <div class="chat-header-sub">Powered by GPT-4o · contexto de vendas</div>
+      </div>
+    </div>
+    <div id="chat-messages">
+      <div class="msg msg-ai">Olá! Sou seu assistente de vendas. Aguarde o carregamento dos dados para começar.</div>
+    </div>
+    <div id="chat-suggestions">
+      <div class="chat-suggestions">
+        <button class="chat-suggestion" onclick="useSuggestion(this)">Quem vendeu mais esse mês?</button>
+        <button class="chat-suggestion" onclick="useSuggestion(this)">Como estamos vs a meta no geral?</button>
+        <button class="chat-suggestion" onclick="useSuggestion(this)">Qual canal teve maior crescimento?</button>
+      </div>
+    </div>
+    <div class="chat-input-row">
+      <textarea id="chat-input" placeholder="Pergunte sobre vendas..." rows="1" onkeydown="chatKeydown(event)"></textarea>
+      <button id="chat-send" onclick="sendChat()">➤</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <main id="main">
+
+    <!-- ERROR BANNER -->
+    <div id="error-banner">
+      <div class="b-icon">❌</div>
+      <div><div class="err-title" id="error-title">Erro ao carregar dados</div><div class="err-sub" id="error-sub"></div></div>
+    </div>
+
+    <!-- MONTH FILTER -->
+    <div class="filter-row" id="filter-row" style="display:none;">
+      <span class="filter-label">Mês</span>
+    </div>
+
+    <!-- KPI CARDS -->
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">Receita Líquida</div><div class="sk sk-h"></div><div class="sk sk-t w60"></div></div>
+      <div class="kpi-card"><div class="kpi-label">Meta Atingida</div><div class="sk sk-h"></div><div class="sk sk-t w60"></div></div>
+      <div class="kpi-card"><div class="kpi-label">Ticket Médio</div><div class="sk sk-h"></div><div class="sk sk-t w60"></div></div>
+      <div class="kpi-card"><div class="kpi-label">Total de Vendas</div><div class="sk sk-h"></div><div class="sk sk-t w60"></div></div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="section-title">Análise Visual</div>
+    <div class="section-sub">Gráficos atualizados conforme o mês selecionado</div>
+    <div class="charts-grid">
+      <div class="chart-card full"><div class="chart-title">Receita Mensal 2026</div><div class="chart-subtitle">Barras = realizado · Linha = meta mensal</div><div class="chart-wrap"><canvas id="chart1"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">Meta vs Realizado por Vendedor</div><div class="chart-subtitle">Verde = bateu meta · Vermelho = abaixo da meta</div><div class="chart-wrap"><canvas id="chart2"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">Receita por Canal</div><div class="chart-subtitle">Participação de cada canal no mês selecionado</div><div class="chart-wrap center"><canvas id="chart3" style="max-width:280px;"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">Receita por Categoria</div><div class="chart-subtitle">Ranking de categorias por receita líquida</div><div class="chart-wrap"><canvas id="chart4"></canvas></div></div>
+    </div>
+
+    <!-- INSIGHTS -->
+    <div class="section-title">Insights IA</div>
+    <div class="section-sub">Análise gerada automaticamente com base nos dados do mês selecionado</div>
+    <div id="ai-banner">
+      <div class="b-icon">⚠️</div>
+      <div><div class="b-title">OpenAI API Key não configurada</div><div class="b-sub">Adicione sua chave em <code>outputs/config.js</code> no campo <code>OPENAI_API_KEY</code>.</div></div>
+    </div>
+    <div class="insights-grid" id="insights-grid">
+      <div class="insight-card" id="ins-0"><div class="insight-icon">📊</div><div class="insight-title"><div class="sk sk-t w60"></div></div><div class="insight-text"><div class="sk sk-t w90"></div><div class="sk sk-t w60"></div></div></div>
+      <div class="insight-card" id="ins-1"><div class="insight-icon">⭐</div><div class="insight-title"><div class="sk sk-t w60"></div></div><div class="insight-text"><div class="sk sk-t w90"></div><div class="sk sk-t w60"></div></div></div>
+      <div class="insight-card" id="ins-2"><div class="insight-icon">🎯</div><div class="insight-title"><div class="sk sk-t w60"></div></div><div class="insight-text"><div class="sk sk-t w90"></div><div class="sk sk-t w60"></div></div></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════════════════
+const CFG = (typeof CONFIG !== 'undefined') ? CONFIG : {};
+const SUPA_URL  = CFG.SUPABASE_URL      || '';
+const SUPA_KEY  = CFG.SUPABASE_ANON_KEY || '';
+const OPENAI_KEY= CFG.OPENAI_API_KEY    || '';
+
+// ══════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════
+let DATA = null;   // populated after fetch
+let selMonth = null;
+let charts = {};
+let chatHistory = [];
+let chatOpen = true;
+
+// ══════════════════════════════════════════════════════════
+//  THEME
+// ══════════════════════════════════════════════════════════
+(function(){
+  const t = localStorage.getItem('theme') || 'light';
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('theme-icon').textContent = t === 'dark' ? '🌙' : '☀️';
+})();
+
+function toggleTheme() {
+  const curr = document.documentElement.getAttribute('data-theme');
+  const next = curr === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  document.getElementById('theme-icon').textContent = next === 'dark' ? '🌙' : '☀️';
+  localStorage.setItem('theme', next);
+  if (DATA) setTimeout(() => render(selMonth), 50);
+}
+
+// ══════════════════════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════════════════════
+const fmt  = v => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v);
+const fmtN = v => new Intl.NumberFormat('pt-BR').format(v);
+const fmtK = v => v >= 1e6 ? `R$ ${(v/1e6).toFixed(2).replace('.',',')}M` : v >= 1e3 ? `R$ ${(v/1e3).toFixed(0)}k` : fmt(v);
+const round2 = v => Math.round(v * 100) / 100;
+const gridColor = () => document.documentElement.getAttribute('data-theme') === 'dark' ? '#1e293b' : '#f1f5f9';
+
+function trend(val, prev, isPercent=false) {
+  if (prev == null) return `<span class="trend-neutral">Primeiro mês</span>`;
+  const diff = isPercent ? val - prev : (val - prev) / Math.abs(prev) * 100;
+  const up = diff >= 0;
+  const cls = up ? 'trend-up' : 'trend-down';
+  const label = isPercent
+    ? `${up?'▲':'▼'} ${Math.abs(diff).toFixed(1)}pp vs mês anterior`
+    : `${up?'▲':'▼'} ${Math.abs(diff).toFixed(1)}% vs mês anterior`;
+  return `<span class="${cls}">${label}</span>`;
+}
+
+// ══════════════════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════════════════
+function doLogin() {
+  if (document.getElementById('login-pass').value === 'demo2026') {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadData();
+  } else {
+    document.getElementById('login-err').textContent = 'Senha incorreta. Tente novamente.';
+    document.getElementById('login-pass').value = '';
+  }
+}
+document.getElementById('login-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+// ══════════════════════════════════════════════════════════
+//  SUPABASE FETCH
+// ══════════════════════════════════════════════════════════
+async function supaFetch(path) {
+  const res = await fetch(`${SUPA_URL}/rest/v1/${path}`, {
+    headers: {
+      'apikey': SUPA_KEY,
+      'Authorization': `Bearer ${SUPA_KEY}`,
+      'Accept': 'application/json',
+    }
+  });
+  if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+// ══════════════════════════════════════════════════════════
+//  LOAD & AGGREGATE DATA
+// ══════════════════════════════════════════════════════════
+async function loadData() {
+  const overlay = document.getElementById('loading-overlay');
+  const loadTxt = document.getElementById('loading-text');
+
+  try {
+    if (!SUPA_URL || !SUPA_KEY) throw new Error('SUPABASE_URL ou SUPABASE_ANON_KEY não configurados no config.js');
+
+    loadTxt.textContent = 'Buscando vendas...';
+    const [salesRaw, targetsRaw] = await Promise.all([
+      supaFetch('sales?select=month,month_name,year,net_revenue,seller_name,channel,category,quantity,unit_price&year=eq.2026&order=month.asc&limit=10000'),
+      supaFetch('seller_targets?select=month,seller_name,sales_target&year=eq.2026'),
+    ]);
+
+    loadTxt.textContent = 'Processando dados...';
+    DATA = aggregate(salesRaw, targetsRaw);
+
+    overlay.classList.add('hidden');
+    Chart.defaults.font.family = "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif";
+    buildMonthFilter(false);   // primeiro load: mantém selMonth se válido, senão pega o mais recente
+    render(selMonth);
+    stampLastUpdate();
+
+    if (OPENAI_KEY) generateInsights(selMonth);
+    else { document.getElementById('ai-banner').style.display = 'flex'; insightFallback(selMonth); }
+
+    scheduleAutoRefresh();   // agenda refresh automático à meia-noite
+
+  } catch(err) {
+    overlay.classList.add('hidden');
+    const eb = document.getElementById('error-banner');
+    document.getElementById('error-title').textContent = 'Erro ao carregar dados do Supabase';
+    document.getElementById('error-sub').textContent = err.message;
+    eb.style.display = 'flex';
+    console.error(err);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  AGGREGATE — transforma linhas brutas em DATA estruturada
+// ══════════════════════════════════════════════════════════
+function aggregate(sales, targets) {
+  const months = [...new Set(sales.map(r => r.month))].sort((a,b) => a-b);
+
+  // ── monthly ─────────────────────────────────────────────
+  const monthly = months.map(m => {
+    const rows = sales.filter(r => r.month === m);
+    const receita = rows.reduce((s,r) => s + parseFloat(r.net_revenue||0), 0);
+    const vendas  = rows.length;
+    const ticket  = vendas ? receita / vendas : 0;
+    const name    = rows[0]?.month_name || `Mês ${m}`;
+    const metaTot = targets.filter(t => t.month === m).reduce((s,t) => s + parseFloat(t.sales_target||0), 0);
+    return { month:m, name, receita:round2(receita), vendas, ticket:round2(ticket), meta:round2(metaTot) };
+  });
+
+  // ── sellers ──────────────────────────────────────────────
+  const sellerKeys = [...new Set(sales.map(r => r.seller_name))];
+  const sellers = [];
+  months.forEach(m => {
+    const monthTargets = targets.filter(t => t.month === m);
+    sellerKeys.forEach(name => {
+      const rows = sales.filter(r => r.month === m && r.seller_name === name);
+      if (!rows.length) return;
+      const real = round2(rows.reduce((s,r) => s + parseFloat(r.net_revenue||0), 0));
+      const tgt  = monthTargets.find(t => t.seller_name === name);
+      const meta = tgt ? round2(parseFloat(tgt.sales_target)) : 0;
+      const pct  = meta ? round2(real * 100 / meta) : 0;
+      sellers.push({ month:m, name, real, meta, pct });
+    });
+    // sort within month by real desc
+    const idx = sellers.findIndex(s => s.month === m);
+    // (already pushed in any order; we sort at render time)
+  });
+
+  // ── channels ─────────────────────────────────────────────
+  const channels = [];
+  months.forEach(m => {
+    const mRows = sales.filter(r => r.month === m);
+    const total = mRows.reduce((s,r) => s + parseFloat(r.net_revenue||0), 0);
+    const chans = [...new Set(mRows.map(r => r.channel))];
+    chans.forEach(name => {
+      const val = round2(mRows.filter(r => r.channel === name).reduce((s,r) => s + parseFloat(r.net_revenue||0), 0));
+      const pct = total ? round2(val * 100 / total) : 0;
+      channels.push({ month:m, name, val, pct });
+    });
+  });
+
+  // ── categories ───────────────────────────────────────────
+  const categories = [];
+  months.forEach(m => {
+    const mRows = sales.filter(r => r.month === m);
+    const cats  = [...new Set(mRows.map(r => r.category))];
+    cats.forEach(name => {
+      const val = round2(mRows.filter(r => r.category === name).reduce((s,r) => s + parseFloat(r.net_revenue||0), 0));
+      categories.push({ month:m, name, val });
+    });
+  });
+
+  return { monthly, sellers, channels, categories };
+}
+
+// ══════════════════════════════════════════════════════════
+//  BUILD MONTH FILTER (dynamic — based on actual data)
+// ══════════════════════════════════════════════════════════
+function buildMonthFilter(forceLatest = false) {
+  if (!DATA.monthly.length) return;
+
+  // Determina qual mês ativar:
+  // - forceLatest = true  → sempre o mais recente (usado no refresh)
+  // - selMonth inválido   → mais recente (primeiro load)
+  // - selMonth válido     → mantém seleção atual
+  const latestMonth = DATA.monthly[DATA.monthly.length - 1].month;
+  const validMonths = DATA.monthly.map(d => d.month);
+  if (forceLatest || !selMonth || !validMonths.includes(selMonth)) {
+    selMonth = latestMonth;
+  }
+
+  const row = document.getElementById('filter-row');
+  row.style.display = 'flex';
+  while (row.children.length > 1) row.removeChild(row.lastChild);
+
+  DATA.monthly.forEach(d => {
+    const btn = document.createElement('button');
+    btn.className = 'month-btn' + (d.month === selMonth ? ' active' : '');
+    btn.textContent = d.name;
+    btn.onclick = () => {
+      document.querySelectorAll('.month-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectMonth(d.month);
+    };
+    row.appendChild(btn);
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+//  REFRESH
+// ══════════════════════════════════════════════════════════
+function stampLastUpdate() {
+  const btn = document.getElementById('refresh-btn');
+  btn.style.display = 'flex';
+  const now = new Date();
+  const ts = now.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+  document.getElementById('refresh-ts').textContent = `· ${ts}`;
+}
+
+async function refreshData() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+  btn.disabled = true;
+  document.getElementById('refresh-label').textContent = 'Atualizando...';
+  document.getElementById('refresh-ts').textContent = '';
+  try {
+    const [salesRaw, targetsRaw] = await Promise.all([
+      supaFetch('sales?select=month,month_name,year,net_revenue,seller_name,channel,category,quantity,unit_price&year=eq.2026&order=month.asc&limit=10000'),
+      supaFetch('seller_targets?select=month,seller_name,sales_target&year=eq.2026'),
+    ]);
+    DATA = aggregate(salesRaw, targetsRaw);
+    buildMonthFilter(true);   // refresh: força seleção do mês mais recente
+    render(selMonth);
+    if (OPENAI_KEY) generateInsights(selMonth);
+    else insightFallback(selMonth);
+    stampLastUpdate();
+  } catch(err) {
+    document.getElementById('refresh-ts').textContent = '· erro';
+    console.error(err);
+  }
+  document.getElementById('refresh-label').textContent = 'Atualizar';
+  btn.classList.remove('spinning');
+  btn.disabled = false;
+}
+
+// ══════════════════════════════════════════════════════════
+//  SELECT MONTH
+// ══════════════════════════════════════════════════════════
+function selectMonth(m) {
+  selMonth = m;
+  render(m);
+  if (OPENAI_KEY) generateInsights(m);
+  else insightFallback(m);
+}
+
+// ══════════════════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════════════════
+function render(m) {
+  updateChartDefaults();
+  renderKPIs(m);
+  renderChart1();
+  renderChart2(m);
+  renderChart3(m);
+  renderChart4(m);
+}
+
+function updateChartDefaults() {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  Chart.defaults.color       = dark ? '#94a3b8' : '#64748b';
+  Chart.defaults.borderColor = dark ? '#1e293b' : '#f1f5f9';
+}
+
+function renderKPIs(m) {
+  const curr = DATA.monthly.find(x => x.month === m);
+  const prev = DATA.monthly.find(x => x.month === m - 1) || null;
+  const currPct = curr.meta ? curr.receita / curr.meta * 100 : 0;
+  const prevPct = prev?.meta ? prev.receita / prev.meta * 100 : null;
+
+  document.getElementById('kpi-grid').innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-label">Receita Líquida</div>
+      <div class="kpi-value">${fmtK(curr.receita)}</div>
+      <div class="kpi-trend">${trend(curr.receita, prev?.receita)}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Meta Atingida</div>
+      <div class="kpi-value" style="color:${currPct>=100?'var(--success)':currPct>=85?'var(--warn)':'var(--danger)'}">${currPct.toFixed(1)}%</div>
+      <div class="kpi-trend">${trend(currPct, prevPct, true)}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Ticket Médio</div>
+      <div class="kpi-value">${fmt(curr.ticket)}</div>
+      <div class="kpi-trend">${trend(curr.ticket, prev?.ticket)}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total de Vendas</div>
+      <div class="kpi-value">${fmtN(curr.vendas)}</div>
+      <div class="kpi-trend">${trend(curr.vendas, prev?.vendas)}</div>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+//  CHARTS
+// ══════════════════════════════════════════════════════════
+const tipBase = cb => ({
+  backgroundColor: document.documentElement.getAttribute('data-theme')==='dark'?'#0f172a':'#1e293b',
+  borderColor:'#334155',borderWidth:1,titleColor:'#f1f5f9',bodyColor:'#94a3b8',padding:12,cornerRadius:8,
+  callbacks:{ label: cb }
+});
+
+function kill(id) { if(charts[id]){charts[id].destroy();delete charts[id];} }
+
+function renderChart1() {
+  kill('c1');
+  const gc = gridColor();
+  charts.c1 = new Chart(document.getElementById('chart1'), {
+    data:{
+      labels: DATA.monthly.map(d=>d.name),
+      datasets:[
+        { type:'bar',  label:'Realizado', data:DATA.monthly.map(d=>d.receita),
+          backgroundColor:DATA.monthly.map(d=>d.month===selMonth?'#6366f1':'#a5b4fc'),
+          borderRadius:8, borderSkipped:false, yAxisID:'y' },
+        { type:'line', label:'Meta', data:DATA.monthly.map(d=>d.meta),
+          borderColor:'#f59e0b', borderWidth:2, borderDash:[6,4],
+          pointBackgroundColor:'#f59e0b', pointRadius:5, tension:.3, yAxisID:'y', fill:false }
+      ]
+    },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{padding:20,usePointStyle:true,pointStyle:'circle'} },
+        tooltip: tipBase(ctx=>` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`) },
+      scales:{ y:{grid:{color:gc},ticks:{callback:v=>fmtK(v)}}, x:{grid:{display:false}} }
+    }
+  });
+}
+
+function renderChart2(m) {
+  kill('c2');
+  const gc = gridColor();
+  const rows = DATA.sellers.filter(s=>s.month===m).sort((a,b)=>b.real-a.real);
+  charts.c2 = new Chart(document.getElementById('chart2'), {
+    type:'bar',
+    data:{
+      labels:rows.map(r=>r.name),
+      datasets:[
+        { label:'Realizado', data:rows.map(r=>r.real),
+          backgroundColor:rows.map(r=>r.pct>=100?'#10b981':'#ef4444'), borderRadius:6, borderSkipped:false },
+        { label:'Meta', data:rows.map(r=>r.meta),
+          backgroundColor:'#e2e8f0', borderRadius:6, borderSkipped:false, borderColor:'#f59e0b', borderWidth:1.5 }
+      ]
+    },
+    options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{labels:{padding:16,usePointStyle:true,pointStyle:'rect'}},
+        tooltip: tipBase(ctx=>` ${ctx.dataset.label}: ${fmt(ctx.parsed.x)}`) },
+      scales:{ x:{grid:{color:gc},ticks:{callback:v=>fmtK(v)}}, y:{grid:{display:false}} }
+    }
+  });
+}
+
+function renderChart3(m) {
+  kill('c3');
+  const rows = DATA.channels.filter(c=>c.month===m).sort((a,b)=>b.val-a.val);
+  charts.c3 = new Chart(document.getElementById('chart3'), {
+    type:'doughnut',
+    data:{ labels:rows.map(r=>r.name),
+      datasets:[{ data:rows.map(r=>r.val), backgroundColor:['#6366f1','#10b981','#f59e0b','#06b6d4'], borderWidth:0, hoverOffset:10 }]
+    },
+    options:{ responsive:true, maintainAspectRatio:true, cutout:'68%',
+      plugins:{ legend:{position:'bottom',labels:{padding:12,usePointStyle:true,pointStyle:'circle',font:{size:11}}},
+        tooltip: tipBase(ctx=>{ const r=rows[ctx.dataIndex]; return ` ${fmt(r.val)} · ${r.pct}%`; }) }
+    }
+  });
+}
+
+function renderChart4(m) {
+  kill('c4');
+  const gc = gridColor();
+  const rows = DATA.categories.filter(c=>c.month===m).sort((a,b)=>a.val-b.val);
+  charts.c4 = new Chart(document.getElementById('chart4'), {
+    type:'bar',
+    data:{ labels:rows.map(r=>r.name),
+      datasets:[{ label:'Receita', data:rows.map(r=>r.val),
+        backgroundColor:['#312e81','#4338ca','#4f46e5','#6366f1'], borderRadius:6, borderSkipped:false }]
+    },
+    options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip: tipBase(ctx=>` ${fmt(ctx.parsed.x)}`) },
+      scales:{ x:{grid:{color:gc},ticks:{callback:v=>fmtK(v)}}, y:{grid:{display:false}} }
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+//  AI INSIGHTS
+// ══════════════════════════════════════════════════════════
+function insRender(id, icon, title, text) {
+  const c = document.getElementById('ins-'+id);
+  c.querySelector('.insight-icon').textContent  = icon;
+  c.querySelector('.insight-title').textContent = title;
+  c.querySelector('.insight-text').textContent  = text;
+}
+function insSkel(id) {
+  const c = document.getElementById('ins-'+id);
+  c.querySelector('.insight-title').innerHTML = '<div class="sk sk-t w60"></div>';
+  c.querySelector('.insight-text').innerHTML  = '<div class="sk sk-t w90"></div><div class="sk sk-t w60"></div>';
+}
+
+function insightFallback(m) {
+  const curr = DATA.monthly.find(x=>x.month===m);
+  const sellers = DATA.sellers.filter(s=>s.month===m);
+  const top = sellers.reduce((a,b)=>a.real>b.real?a:b);
+  const low = sellers.reduce((a,b)=>a.pct<b.pct?a:b);
+  const pct = curr.meta ? (curr.receita/curr.meta*100).toFixed(1) : '—';
+  insRender(0,'📊','Desempenho geral',`Meta atingimento de ${pct}% em ${curr.name}. ${parseFloat(pct)>=100?'Excelente resultado.':'Há espaço para crescimento.'}`);
+  insRender(1,'⭐','Destaque do mês',`${top.name} liderou com ${top.pct}% da meta atingida no período.`);
+  insRender(2,'⚠️','Ponto de atenção',`${low.name} atingiu ${low.pct}% da meta. Recomenda-se revisão de estratégia.`);
+}
+
+function buildAIContext(m) {
+  const curr = DATA.monthly.find(x=>x.month===m);
+  const prev = DATA.monthly.find(x=>x.month===m-1);
+  const sellers = DATA.sellers.filter(s=>s.month===m).sort((a,b)=>b.real-a.real);
+  const topCh   = [...DATA.channels.filter(c=>c.month===m)].sort((a,b)=>b.val-a.val)[0];
+  const pct     = curr.meta ? (curr.receita/curr.meta*100).toFixed(1) : '—';
+  return `Mês: ${curr.name}/2026 | Receita: ${fmt(curr.receita)} | Meta: ${pct}% | Vendas: ${curr.vendas}${prev?` | MoM: ${((curr.receita/prev.receita-1)*100).toFixed(1)}%`:''} | Vendedores: ${sellers.map(s=>`${s.name} ${s.pct}%`).join(', ')} | Canal líder: ${topCh?.name} ${topCh?.pct}%`;
+}
+
+async function generateInsights(m) {
+  [0,1,2].forEach(i=>insSkel(i));
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${OPENAI_KEY}`},
+      body: JSON.stringify({
+        model:'gpt-4o',
+        messages:[
+          {role:'system',content:'Analista de vendas sênior. Gere exatamente 3 insights em português. Responda APENAS com JSON válido: [{"icon":"emoji","title":"título curto","text":"2 frases com números"}]. Sem markdown.'},
+          {role:'user',content:buildAIContext(m)}
+        ],
+        temperature:.7, max_tokens:400
+      })
+    });
+    const d = await res.json();
+    const arr = JSON.parse(d.choices[0].message.content.replace(/```json|```/g,'').trim());
+    arr.slice(0,3).forEach((x,i)=>insRender(i,x.icon,x.title,x.text));
+  } catch(e) { insightFallback(m); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  CHAT
+// ══════════════════════════════════════════════════════════
+function buildSystemPrompt() {
+  if (!DATA) return 'Você é um assistente de análise de vendas.';
+  const lines = DATA.monthly.map(d=>{
+    const pct = d.meta ? (d.receita/d.meta*100).toFixed(1) : '—';
+    return `${d.name}: ${fmt(d.receita)} (meta ${pct}%, ${d.vendas} vendas, ticket ${fmt(d.ticket)})`;
+  });
+  const selLines = DATA.sellers.map(s=>`${s.name} ${s.month}: ${fmt(s.real)} (${s.pct}%)`);
+  return `Assistente de análise de vendas 2026. Dados reais:\n${lines.join('\n')}\nVendedores: ${selLines.join(' | ')}\nResponda em português, direto, com números. Máx 3 parágrafos.`;
+}
+
+function addMsg(text, type) {
+  const d = document.createElement('div');
+  d.className = `msg msg-${type}`;
+  d.textContent = text;
+  const m = document.getElementById('chat-messages');
+  m.appendChild(d);
+  m.scrollTop = m.scrollHeight;
+  return d;
+}
+
+function useSuggestion(btn) {
+  document.getElementById('chat-suggestions').style.display='none';
+  document.getElementById('chat-input').value = btn.textContent;
+  sendChat();
+}
+
+function chatKeydown(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();} }
+
+async function sendChat() {
+  if (!OPENAI_KEY) { addMsg('⚠️ Configure OPENAI_API_KEY no outputs/config.js para usar o chat.','ai'); return; }
+  const inp = document.getElementById('chat-input');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value='';
+  document.getElementById('chat-send').disabled=true;
+  addMsg(text,'user');
+  chatHistory.push({role:'user',content:text});
+  const typing = addMsg('Digitando...','ai msg-typing');
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${OPENAI_KEY}`},
+      body: JSON.stringify({model:'gpt-4o',messages:[{role:'system',content:buildSystemPrompt()},...chatHistory],temperature:.6,max_tokens:400})
+    });
+    const reply = (await res.json()).choices[0].message.content;
+    typing.remove();
+    addMsg(reply,'ai');
+    chatHistory.push({role:'assistant',content:reply});
+  } catch(e) { typing.remove(); addMsg('Erro ao conectar com a IA.','ai'); }
+  document.getElementById('chat-send').disabled=false;
+  document.getElementById('chat-input').focus();
+}
+
+// ══════════════════════════════════════════════════════════
+//  AUTO-REFRESH DIÁRIO
+//  Calcula ms até a próxima meia-noite e agenda um refresh
+//  automático. Enquanto a aba estiver aberta, atualiza 1x/dia.
+// ══════════════════════════════════════════════════════════
+function scheduleAutoRefresh() {
+  const now       = new Date();
+  const midnight  = new Date(now);
+  midnight.setHours(24, 0, 0, 0);              // próxima meia-noite
+  const msUntil   = midnight - now;
+  setTimeout(async () => {
+    await refreshData();
+    scheduleAutoRefresh();                      // reagenda para o próximo dia
+  }, msUntil);
+  const h = Math.floor(msUntil / 3600000);
+  const m = Math.floor((msUntil % 3600000) / 60000);
+  console.info(`[auto-refresh] próxima atualização em ${h}h ${m}min (meia-noite)`);
+}
+
+// ══════════════════════════════════════════════════════════
+//  CHAT TOGGLE
+// ══════════════════════════════════════════════════════════
+function toggleChat() {
+  chatOpen=!chatOpen;
+  document.getElementById('chat-sidebar').classList.toggle('collapsed',!chatOpen);
+  document.getElementById('main').classList.toggle('expanded',!chatOpen);
+  document.getElementById('chat-toggle-btn').textContent = chatOpen?'💬 Chat':'💬 Abrir Chat';
+}
+</script>
+</body>
+</html>
